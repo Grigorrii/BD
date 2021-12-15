@@ -1,0 +1,424 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using Npgsql;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace teldirectory
+{
+    public partial class tel_dir : Form
+    {
+        public tel_dir() {
+            InitializeComponent();
+        }
+        private static NpgsqlConnection GetConnection() {
+            return new NpgsqlConnection(@"Server = localhost;Port = 5432; User Id = postgres; Password = 12345678; Database = MAI;");
+        }
+
+        private NpgsqlConnection conn;
+        private DataTable dt;
+        private NpgsqlCommand cmd;
+        private string sql = null;
+        private int selectedRowIndex;
+
+        //переменные для введения данных
+        public string name_str, surname_str, middlename_str, street_str, house_str, building_str, tel_str, flat_str;
+        public bool send_status = false;
+
+        private void directory_CellContentClick(object sender, DataGridViewCellEventArgs e) {
+            directory.ReadOnly = true;
+        }
+
+        private void directory_SelectionChanged(object sender, EventArgs e) {
+            if (directory.CurrentRow != null)
+                selectedRowIndex = directory.CurrentRow.Index;
+            //textBox1.Text = Convert.ToString(selectedRowIndex);
+        }
+
+        private int getElementId(NpgsqlCommand com, string column, string element) {
+            object buf; //буфер для id элемента
+
+            //запрос на получение id элемента
+            string quest = String.Format("Select id " +
+                         "from {0} " +
+                         "where {1} = '{2}'", column, column, element);
+            com.CommandText = quest;
+            //если такой фамилии в таблице нет
+            if ((buf = com.ExecuteScalar()) == null) {
+                var result = MessageBox.Show("Do you want to insert \"" + element + "\" in the table?", "New name", MessageBoxButtons.YesNo, MessageBoxIcon.None);
+                //добавление нового элемента
+                if (result == DialogResult.Yes) {
+                    string insert_elem = String.Format("Insert into {0} ({1}) " +
+                        "values ('{2}')", column, column, element);
+                    com.CommandText = insert_elem;
+                    com.ExecuteNonQuery();
+                    com.CommandText = quest;
+                    buf = com.ExecuteScalar();
+                    return (int)buf;
+                }
+                else {
+                    return 0;
+                }
+            }
+            else {
+                return (int)buf;
+            }
+        }
+
+        private void columnName() {
+            directory.Columns[0].HeaderText = "Имя";
+            directory.Columns[1].HeaderText = "Фамилия";
+            directory.Columns[2].HeaderText = "Отчество";
+            directory.Columns[3].HeaderText = "Улица";
+            directory.Columns[4].HeaderText = "Дом";
+            directory.Columns[5].HeaderText = "Корпус";
+            directory.Columns[6].HeaderText = "Квартира";
+            directory.Columns[7].HeaderText = "Телефон";
+        }
+
+        private void Update_Click(object sender, EventArgs e) {
+            try {
+                conn.Open();
+                sql = "select " +
+                    "name.name, " +
+                    "surname.surname, " +
+                    "middlename.middlename, " +
+                    "street.street, " +
+                    "tel_directory.house, " +
+                    "tel_directory.building, " +
+                    "tel_directory.flat, " +
+                    "tel_directory.telephone " +
+                    "from tel_directory " +
+                    "join surname on tel_directory.surname_id = surname.id " +
+                    "join name on tel_directory.name_id = name.id " +
+                    "join street on tel_directory.street_id = street.id " +
+                    "join middlename on tel_directory.middlename_id = middlename.id";
+                cmd = new NpgsqlCommand(sql, conn);
+                dt = new DataTable();
+                dt.Load(cmd.ExecuteReader());
+                directory.DataSource = dt;
+                conn.Close();
+
+                //очищение строк после добавления
+                NameCombo.Text = null;
+                SecondnameCombo.Text = null;
+                MiddlenameCombo.Text = null;
+                StreetCombo.Text = null;
+                house.Text = null;
+                building.Text = null;
+                flat.Text = null;
+                tel.Text = null;
+            }
+            catch (Exception ex) {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+        }
+
+        private void Change_Click(object sender, EventArgs e) {
+            //проверка на выделенность строки
+            if (directory.CurrentRow == null)
+                return;
+            int uid = 0; //переменная для хранения uid изменяемой строки
+            DataGridViewRow selectedRow = directory.Rows[selectedRowIndex]; //сохрание индекса выбранной строки
+            int name_id = 0, surname_id = 0, middlename_id = 0, street_id = 0; ; //переменне для хранения id имени, фамилии, отчества и улицы
+
+            //получене начальных параметров
+            name_str = Convert.ToString(selectedRow.Cells["name"].Value);
+            surname_str = Convert.ToString(selectedRow.Cells["surname"].Value);
+            middlename_str = Convert.ToString(selectedRow.Cells["middlename"].Value);
+            street_str = Convert.ToString(selectedRow.Cells["street"].Value);
+            house_str = Convert.ToString(selectedRow.Cells["house"].Value);
+            building_str = Convert.ToString(selectedRow.Cells["building"].Value);
+            flat_str = Convert.ToString(selectedRow.Cells["flat"].Value);
+            tel_str = Convert.ToString(selectedRow.Cells["telephone"].Value);
+
+
+            //получение uid изменяющей строки
+            try {
+                conn.Open();
+                string get_id = String.Format("Select uid from tel_directory " +
+                                "where name_id = (select id from name where name='{0}') " +
+                                "and surname_id = (select id from surname where surname='{1}') " +
+                                "and middlename_id = (select id from middlename where middlename='{2}') " +
+                                "and telephone = '{3}'", name_str, surname_str, middlename_str, tel_str);
+                cmd.CommandText = get_id;
+                uid = Convert.ToInt32(cmd.ExecuteScalar());
+                conn.Close();
+            }
+            catch (Exception ex) {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+
+            //настройка и вывод окна changing
+            Changing Form = new Changing(this) {
+                Owner = this,
+                TopMost = true
+            };
+
+            //ввод изначальных данных в форму Changing
+            Form.Secondname_ch.Text = surname_str;
+            Form.Name_ch.Text = name_str;
+            Form.Middlename_ch.Text = middlename_str;
+            Form.Street_ch.Text = street_str;
+            Form.Building_ch.Text = building_str;
+            Form.House_ch.Text = house_str;
+            Form.Flat_ch.Text = flat_str;
+            Form.Tel_ch.Text = tel_str;
+
+            //активность окна changing
+            Form.ShowDialog();
+
+            //если пользователь нажал на кнопку отправить
+            if (send_status) {
+                send_status = false;
+                try {
+                    conn.Open();
+                    if (name_str != "" && surname_str != "" && street_str != "" && house_str != "" && flat_str != "" && tel_str != "") {
+                        //получение id имени
+                        if ((name_id = getElementId(cmd, "name", name_str)) == 0) {
+                            conn.Close();
+                            return;
+                        }
+
+                        //получение id фамилии
+                        if ((surname_id = getElementId(cmd, "surname", surname_str)) == 0) {
+                            conn.Close();
+                            return;
+                        }
+
+                        //запрос на получение id отчества
+                        if (middlename_str != "") {
+                            if ((middlename_id = getElementId(cmd, "middlename", middlename_str)) == 0) {
+                                conn.Close();
+                                return;
+                            }
+                        }
+
+                        //запрос на получение id улицы
+                        if ((street_id = getElementId(cmd, "street", street_str)) == 0) {
+                            conn.Close();
+                            return;
+                        }
+
+                        string upd = String.Format("Update tel_directory " +
+                                "set name_id = {0}, surname_id = {1}, middlename_id = {2}, street_id = {3}, " +
+                                "house = '{4}', building = '{5}', flat = {6}, telephone = '{7}' " +
+                                "where uid = {8}", name_id, surname_id, middlename_id, street_id, house_str, building_str, flat_str, tel_str, uid);
+                        cmd.ExecuteNonQuery();
+                    }
+                    else {
+                        MessageBox.Show("Not all necessary data has been entered!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    conn.Close();
+                }
+                catch (Exception ex) {
+                    MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    conn.Close();
+                }
+                Update.PerformClick();
+            }
+        }
+
+        private void Delete_Click(object sender, EventArgs e) {
+            //проверка на выделенность строки
+            if (directory.CurrentRow == null)
+                return;
+            int uid, max_uid; //переменная для хранения id будучи удаленной строки из tel_directroy
+            DataGridViewRow selectedRow = directory.Rows[selectedRowIndex]; //сохрание индекса выбранной строки
+
+            //взятие из строки необходимых данных для будущего удаления
+            name_str = Convert.ToString(selectedRow.Cells["name"].Value);
+            surname_str = Convert.ToString(selectedRow.Cells["surname"].Value);
+            middlename_str = Convert.ToString(selectedRow.Cells["middlename"].Value);
+            tel_str = Convert.ToString(selectedRow.Cells["telephone"].Value);
+
+            //поиск uid строки, которую мы хотим удалить
+            sql = String.Format("Select uid from tel_directory " +
+                "where name_id = (select id from name where name='{0}') " +
+                  "and surname_id = (select id from surname where surname='{1}') " +
+                  "and middlename_id = (select id from middlename where middlename='{2}') " +
+                  "and telephone = '{3}'", name_str, surname_str, middlename_str, tel_str);
+            try {
+                conn.Open();
+                cmd = new NpgsqlCommand(sql, conn);
+
+                //удаление выбранной строки
+                uid = Convert.ToInt32(cmd.ExecuteScalar());
+                string del_sql = String.Format("Delete from tel_directory where uid = {0}", uid);
+                cmd.CommandText = del_sql;
+                cmd.ExecuteNonQuery();
+
+                //перераспределение uid в teldirectory
+                string numeric = String.Format("Update tel_directory set uid = uid-1 where uid > {0}", uid);
+                cmd.CommandText = numeric;
+                cmd.ExecuteNonQuery();
+                cmd.CommandText = String.Format("Select max(uid) from tel_directory");
+                max_uid = Convert.ToInt32(cmd.ExecuteScalar());
+                cmd.CommandText = String.Format("Alter sequence tel_directory_uid_seq restart with {0}", max_uid+1);
+                cmd.ExecuteNonQuery();
+                conn.Close();
+            }
+            catch (Exception ex) {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+            Update.PerformClick();
+        }
+
+        private void Insert_Click(object sender, EventArgs e) {
+            int name_id, surname_id, middlename_id = 0, street_id;
+            name_str = NameCombo.Text;
+            surname_str = SecondnameCombo.Text;
+            middlename_str = MiddlenameCombo.Text;
+            street_str = StreetCombo.Text;
+            house_str = house.Text;
+            building_str = building.Text;
+            flat_str = flat.Text;
+            tel_str = tel.Text;
+            try {
+                conn.Open();
+                //проверка на защиту невведенных данных
+                if (name_str != "" && surname_str != "" && street_str != "" && house_str != "" && flat_str != "" && tel_str != "") {
+
+                    //получение id имени
+                    if ((name_id = getElementId(cmd, "name", name_str)) == 0) {
+                        conn.Close();
+                        return;
+                    }
+
+                    //получение id фамилии
+                    if ((surname_id = getElementId(cmd, "surname", surname_str)) == 0) {
+                        conn.Close();
+                        return;
+                    }
+
+                    //запрос на получение id отчества
+                    if (middlename_str != "") {
+                        if ((middlename_id = getElementId(cmd, "middlename", middlename_str)) == 0) {
+                            conn.Close();
+                            return;
+                        }
+                    }
+
+                    //запрос на получение id улицы
+                    if ((street_id = getElementId(cmd, "street", street_str)) == 0) {
+                        conn.Close();
+                        return;
+                    }
+
+                    sql = String.Format("Insert into tel_directory (name_id, surname_id, middlename_id, street_id, house, building, flat, telephone)" +
+                        "values ({0}, {1}, {2}, {3}, '{4}', '{5}', {6}, '{7}')",
+                        name_id, surname_id, middlename_id, street_id, house_str, building_str, flat_str, tel_str);
+
+                    cmd.CommandText = sql;
+                    cmd.ExecuteNonQuery();
+                }
+                else {
+                    MessageBox.Show("Not all necessary data has been entered!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                conn.Close();
+            }
+            catch (Exception ex) {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+            Update.PerformClick();
+
+            //очищение строк после добавления
+            NameCombo.Text = null;
+            SecondnameCombo.Text = null;
+            MiddlenameCombo.Text = null;
+            StreetCombo.Text = null;
+            house.Text = null;
+            building.Text = null;
+            flat.Text = null;
+            tel.Text = null;
+        }
+
+        private void flat_KeyPress(object sender, KeyPressEventArgs e) {
+            char number = e.KeyChar;
+            if (!Char.IsDigit(number) && number != (char)Keys.Back) {
+                e.Handled = true;
+            }
+            
+        }
+
+        private void tel_KeyPress(object sender, KeyPressEventArgs e) {
+            char number = e.KeyChar;
+            if (!Char.IsDigit(number) && number != '+' && number != (char)Keys.Back) {
+                e.Handled = true;
+            }
+        }
+
+        private void find_Click(object sender, EventArgs e) {
+            try {
+                conn.Open();
+                sql = "select " +
+                    "name.name, " +
+                    "surname.surname, " +
+                    "middlename.middlename, " +
+                    "street.street, " +
+                    "tel_directory.house, " +
+                    "tel_directory.building, " +
+                    "tel_directory.flat, " +
+                    "tel_directory.telephone " +
+                    "from tel_directory " +
+                    "join surname on tel_directory.surname_id = surname.id " +
+                    "join name on tel_directory.name_id = name.id " +
+                    "join street on tel_directory.street_id = street.id " +
+                    "join middlename on tel_directory.middlename_id = middlename.id";
+                cmd = new NpgsqlCommand(sql, conn);
+                dt = new DataTable();
+                dt.Load(cmd.ExecuteReader());
+                directory.DataSource = dt;
+                conn.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+        }
+
+
+        private void telephone_Load(object sender, EventArgs e) {
+            string connString = String.Format("Server = {0}; Username = {1}; Database={2}; Port={3}; Password={4}; SSLMode = Prefer", "localhost", "postgres", "MAI", "5432", "12345678");
+
+            conn = new NpgsqlConnection(connString);
+            try {
+                conn.Open();
+                sql = "select " +
+                    "name.name, " +
+                    "surname.surname, " +
+                    "middlename.middlename, " +
+                    "street.street, " +
+                    "tel_directory.house, " +
+                    "tel_directory.building, " +
+                    "tel_directory.flat, " +
+                    "tel_directory.telephone " +
+                    "from tel_directory " +
+                    "join surname on tel_directory.surname_id = surname.id " +
+                    "join name on tel_directory.name_id = name.id " +
+                    "join street on tel_directory.street_id = street.id " +
+                    "join middlename on tel_directory.middlename_id = middlename.id";
+                cmd = new NpgsqlCommand(sql, conn);
+                dt = new DataTable();
+                dt.Load(cmd.ExecuteReader());
+                directory.DataSource = dt;
+                columnName();
+                conn.Close();
+            }
+            catch (Exception ex) {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+        }
+    }
+}
