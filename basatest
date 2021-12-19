@@ -1,0 +1,315 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using Npgsql;
+
+namespace testbaza
+{
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private static NpgsqlConnection GetConnection()
+        {
+            return new NpgsqlConnection(@"Server = localhost;Port = 5432; User Id = postgres; Password = 29072002; Database = basa;");
+        }
+
+        private NpgsqlConnection conn;
+        private DataTable dt;
+        private NpgsqlCommand cmd;
+        private string sql = null;
+        private int selectedRowIndex;
+
+        //переменные для введения данных
+        public string name_str, surname_str, middlename_str, street_str, house_str, building_str, tel_str, flat_str;
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+        }
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
+        }
+
+        
+
+        private void directory_SelectionChanged(object sender, EventArgs e)
+        {
+            if (directory.CurrentRow != null)
+                selectedRowIndex = directory.CurrentRow.Index;
+        }
+
+        private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
+        {
+        }
+        private void surnamecombo_SelectedIndexChanged(object sender, EventArgs e)
+        {
+        }
+        private void label2_Click(object sender, EventArgs e)
+        {
+        }
+        private void label1_Click(object sender, EventArgs e)
+        {
+        }
+        private void label3_Click(object sender, EventArgs e)
+        {
+        }
+        private void label4_Click(object sender, EventArgs e)
+        {
+        }
+        private void label5_Click(object sender, EventArgs e)
+        {
+        }
+        private void label6_Click(object sender, EventArgs e)
+        {
+        }
+        private void label8_Click(object sender, EventArgs e)
+        {
+        }
+        private void label7_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void directory_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            directory.ReadOnly = true;
+        }
+
+        public bool send_status = false;
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+       
+
+        private int getElementId(NpgsqlCommand com, string column, string element)
+        {
+            object buf; //буфер для id элемента
+
+            //запрос на получение id элемента
+            string quest = String.Format("Select id " +
+                         "from {0} " +
+                         "where {1} = '{2}'", column, column, element);
+            com.CommandText = quest;
+            //если такой фамилии в таблице нет
+            if ((buf = com.ExecuteScalar()) == null)
+            {
+                var result = MessageBox.Show("Do you want to insert \"" + element + "\" in the table?", "New name", MessageBoxButtons.YesNo, MessageBoxIcon.None);
+                //добавление нового элемента
+                if (result == DialogResult.Yes)
+                {
+                    string insert_elem = String.Format("Insert into {0} ({1}) " +
+                        "values ('{2}')", column, column, element);
+                    com.CommandText = insert_elem;
+                    com.ExecuteNonQuery();
+                    com.CommandText = quest;
+                    buf = com.ExecuteScalar();
+                    return (int)buf;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                return (int)buf;
+            }
+        }
+
+        private void columnName()
+        {
+            directory.Columns[0].HeaderText = "Имя";
+            directory.Columns[1].HeaderText = "Фамилия";
+            directory.Columns[2].HeaderText = "Отчество";
+            directory.Columns[3].HeaderText = "Улица";
+            directory.Columns[4].HeaderText = "Дом";
+            directory.Columns[5].HeaderText = "Корпус";
+            directory.Columns[6].HeaderText = "Квартира";
+            directory.Columns[7].HeaderText = "Телефон";
+        }
+        private void Update_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                conn.Open();
+                sql = "select " +
+                    "name.name, " +
+                    "fam.fam, " +
+                    "otc.otech, " +
+                    "street.street, " +
+                    "main.bulding, " +
+                    "main.bulding_k, " +
+                    "main.appart, " +
+                    "main.tell " +
+                    "from main " +
+                    "join fam on main.fam = fam.f.id " +
+                    "join name on main.name = name.n_id " +
+                    "join street on main.street = street.st_id " +
+                    "join otc on main.otech = otc.otech_id";
+                cmd = new NpgsqlCommand(sql, conn);
+                dt = new DataTable();
+                dt.Load(cmd.ExecuteReader());
+                directory.DataSource = dt;
+                conn.Close();
+
+                //очищение строк после добавления
+                Namecombo.Text = null;
+                otechcombo.Text = null;
+                surnamecombo.Text = null;
+                streetcombo.Text = null;
+                building.Text = null;
+                building_k.Text = null;
+                apart.Text = null;
+                tel.Text = null;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+        }
+
+
+
+
+
+
+
+        private void Change_Click(object sender, EventArgs e)
+        {
+            //проверка на выделенность строки
+            if (directory.CurrentRow == null)
+                return;
+            int uid = 0; //переменная для хранения uid изменяемой строки
+            DataGridViewRow selectedRow = directory.Rows[selectedRowIndex]; //сохрание индекса выбранной строки
+            int name_id = 0, surname_id = 0, middlename_id = 0, street_id = 0; ; //переменне для хранения id имени, фамилии, отчества и улицы
+
+            //получене начальных параметров
+            name_str = Convert.ToString(selectedRow.Cells["имя"].Value);
+            surname_str = Convert.ToString(selectedRow.Cells["фамилия"].Value);
+            middlename_str = Convert.ToString(selectedRow.Cells["отчество"].Value);
+            street_str = Convert.ToString(selectedRow.Cells["улица"].Value);
+            house_str = Convert.ToString(selectedRow.Cells["дом"].Value);
+            building_str = Convert.ToString(selectedRow.Cells["корпус"].Value);
+            flat_str = Convert.ToString(selectedRow.Cells["квартира"].Value);
+            tel_str = Convert.ToString(selectedRow.Cells["телефон"].Value);
+
+
+            //получение uid изменяющей строки
+            try
+            {
+                conn.Open();
+                string get_id = String.Format("Select uid from main " +
+                                "where name_id = (select id from name where name='{0}') " +
+                                "and surname_id = (select id from fam where fam='{1}') " +
+                                "and middlename_id = (select id from otc where otech='{2}') " +
+                                "and telephone = '{3}'", name_str, surname_str, middlename_str, tel_str);
+                cmd.CommandText = get_id;
+                uid = Convert.ToInt32(cmd.ExecuteScalar());
+                conn.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                conn.Close();
+            }
+
+            //настройка и вывод окна changing
+            Changing Form = new Changing(this)
+            {
+                Owner = this,
+                TopMost = true
+            };
+            {
+
+                //ввод изначальных данных в форму Changing
+                Form.surname.Text = surname_str;
+                Form.Name_ch.Text = name_str;
+                Form.Middlename_ch.Text = middlename_str;
+                Form.Street_ch.Text = street_str;
+                Form.Building_ch.Text = building_str;
+                Form.House_ch.Text = house_str;
+                Form.Flat_ch.Text = flat_str;
+                Form.Tel_ch.Text = tel_str;
+
+                //активность окна changing
+                Form.ShowDialog();
+            }
+
+            //если пользователь нажал на кнопку отправить
+            if (send_status)
+            {
+                send_status = false;
+                try
+                {
+                    conn.Open();
+                    if (name_str != "" && surname_str != "" && street_str != "" && house_str != "" && flat_str != "" && tel_str != "")
+                    {
+                        //получение id имени
+                        if ((name_id = getElementId(cmd, "name", name_str)) == 0)
+                        {
+                            conn.Close();
+                            return;
+                        }
+
+                        //получение id фамилии
+                        if ((surname_id = getElementId(cmd, "fam", surname_str)) == 0)
+                        {
+                            conn.Close();
+                            return;
+                        }
+
+                        //запрос на получение id отчества
+                        if (middlename_str != "")
+                        {
+                            if ((middlename_id = getElementId(cmd, "otech", middlename_str)) == 0)
+                            {
+                                conn.Close();
+                                return;
+                            }
+                        }
+
+                        //запрос на получение id улицы
+                        if ((street_id = getElementId(cmd, "street", street_str)) == 0)
+                        {
+                            conn.Close();
+                            return;
+                        }
+
+                        string upd = String.Format("Update basa " +
+                                "set n_id = {0}, f_id = {1}, otech_id = {2}, st_id = {3}, " +
+                                " building= '{4}', building_k = '{5}', apart = {6}, tell = '{7}' " +
+                                "where uid = {8}", name_id, surname_id, middlename_id, street_id, house_str, building_str, flat_str, tel_str, uid);
+                        cmd.ExecuteNonQuery();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Not all necessary data has been entered!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    conn.Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error: " + ex.Message, "FAIL!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    conn.Close();
+                }
+                Update.PerformClick();
+            }
+        }
+
+    }
+    
+    
+}
