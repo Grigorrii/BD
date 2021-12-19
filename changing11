@@ -1,0 +1,70 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace testbaza
+{
+    public partial class Changing : Form
+    {
+        Form1 par;
+        public Changing(Form1 parent)
+        {
+            InitializeComponent();
+            par = parent;
+        }
+        private void Changing_Load(object sender, EventArgs e)
+        {
+        }
+        private void building_k_TextChanged(object sender, EventArgs e)
+        {
+        }
+        private void building_TextChanged(object sender, EventArgs e)
+        {
+        }
+        private void apart_TextChanged(object sender, EventArgs e)
+        {   
+        }
+        private void tel_TextChanged(object sender, EventArgs e)
+        {
+        }
+
+        private void apart_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            char number = e.KeyChar;
+            if(!char.IsDigit(number) && number!=(char)Keys.Back)
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void tel_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            char number = e.KeyChar;
+
+            if(!char.IsDigit(number) && number!= '+' && number!=(char)Keys.Back)
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void Send_Click(object sender, EventArgs e)
+        {
+            par.surname_str = surname.Text;
+            par.name_str = Name_ch.Text;
+            par.middlename_str = Middlename_ch.Text;
+            par.street_str = Street_ch.Text;
+            par.building_str = Building_ch.Text;
+            par.house_str = House_ch.Text;
+            par.flat_str = Flat_ch.Text;
+            par.tel_str = Tel_ch.Text;
+            par.send_status = true;
+            this.Close();
+        }
+    }
+}
